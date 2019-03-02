@@ -4,11 +4,11 @@ lappend auto_path $env(PARFLOW_DIR)/bin
 package require parflow
 namespace import Parflow::*
 
-#set stopt 8760
-set stopt 5
+set stopt 8760
+#set stopt 20
 puts $stopt
 
-set sig_digits 4
+set sig_digits 8
 
 proc compareFile {file1 file2 message sig_digits} {
     if [file exists $file1 ] {
