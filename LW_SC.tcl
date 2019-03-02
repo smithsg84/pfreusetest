@@ -5,8 +5,63 @@ package require parflow
 namespace import Parflow::*
 
 #set stopt 8760
-set stopt 100
+set stopt 5
 puts $stopt
+
+set sig_digits 4
+
+proc compareFile {file1 file2 message sig_digits} {
+    if [file exists $file1 ] {
+	if [file exists $file2] {
+
+	    puts "Loading $file1"
+	    set correct [pfload $file1]
+	    puts "Loading $file2"
+	    set new     [pfload $file2]
+
+	    puts "$new $correct"
+	    set diff [pfmdiff $new $correct $sig_digits]
+
+	    puts $diff
+
+	    if {[string length $diff] != 0 } {
+		
+		set mSigDigs [lindex $diff 0]
+		set maxAbsDiff [lindex $diff 1]
+		
+		set i [lindex $mSigDigs 0]
+		set j [lindex $mSigDigs 1]
+		set k [lindex $mSigDigs 2]
+		
+		puts "FAILED : $message"
+		
+		puts [format "\tMinimum significant digits at (% 3d, % 3d, % 3d) = %2d"\
+			  $i $j $k [lindex $mSigDigs 3]]
+		
+		puts [format "\tCorrect value %e" [pfgetelt $correct $i $j $k]]
+		puts [format "\tComputed value %e" [pfgetelt $new $i $j $k]]
+		
+		set elt_diff [expr abs([pfgetelt $correct $i $j $k] - [pfgetelt $new $i $j $k])]
+		
+		puts [format "\tDifference %e" $elt_diff]
+		
+		puts [format "\tMaximum absolute difference = %e" $maxAbsDiff]
+		
+		return 0
+	    } {
+		return 1
+	    }
+
+	    pfdelete $correct
+	    pfdelete $new
+	} {
+	    puts "FAILED : regression check output file <$file2> does not exist"
+	}
+    } {
+	puts "FAILED : output file <$file1> not created"
+	return 0
+    }
+}
 
 #file copy -force "../narr_1hr.txt" .
 #file copy -force "../LW_Loam_SU.out.press.00006.pfb" .
@@ -355,27 +410,48 @@ pfset Geom.domain.ICPressure.RefPatch                   z-upper
 #pfset Geom.domain.ICPressure.FileName                   "LW_Loam_SU.out.press.00006.pfb"
 #pfdist "LW_Loam_SU.out.press.00006.pfb"
 
-pfset Solver.CLM.ReuseCount      1
-pfset TimeStep.Value             1.0
+set reuseValues {1 10}
 
-#-----------------------------------------------------------------------------
-# Run and Unload the ParFlow output files
-#-----------------------------------------------------------------------------
+set runname reuse
 
-set runname [format "LW_SC_ts_%2.2f" [pfget TimeStep.Value]]
-puts $runname
+foreach reuseCount $reuseValues {
 
-pfrun $runname
-pfundist $runname
+    pfset Solver.CLM.ReuseCount      $reuseCount
+    pfset TimeStep.Value             [expr 1.0 / $reuseCount]
 
-for {set k 1} {$k <=$stopt} {incr k} {
-   set outfile1 [format "%s.out.clm_output.%05d.C.pfb" $runname $k]
-   pfundist $outfile1
+    #-----------------------------------------------------------------------------
+    # Run and Unload the ParFlow output files
+    #-----------------------------------------------------------------------------
+
+    set dirname [format "LW_SC_ts_%2.2f" [pfget TimeStep.Value]]
+    puts $dirname
+
+    pfrun $runname
+    pfundist $runname
+
+    for {set k 1} {$k <=$stopt} {incr k} {
+	set outfile1 [format "%s.out.clm_output.%05d.C.pfb" $runname $k]
+	pfundist $outfile1
+    }
+
+    exec rm -fr $dirname
+    exec mkdir -p $dirname
+    exec bash -c "mv $runname?* $dirname"
+    exec mv CLM.out.clm.log clm.rst.00000.0 $dirname
 }
 
-exec rm -fr $runname
-exec mkdir -p $runname
-exec bash -c "mv $runname?* $runname"
+for {set k 1} {$k <=$stopt} {incr k} {
+    set timeStep [expr 1.0 / [lindex $reuseValues 0]]
+    set dirname1 [format "LW_SC_ts_%2.2f" $timeStep]
+    set file1 [format "%s/%s.out.clm_output.%05d.C.pfb" $dirname1 $runname $k]
+
+    set timeStep [expr 1.0 / [lindex $reuseValues 1]]
+    set dirname2 [format "LW_SC_ts_%2.2f" $timeStep]
+    set file2 [format "%s/%s.out.clm_output.%05d.C.pfb" $dirname2 $runname $k]
+
+
+    compareFile $file1 $file2 "CLM result is differs" $sig_digits
+}
 
 
 

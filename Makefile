@@ -10,6 +10,9 @@ include $(PARFLOW_DIR)/config/Makefile.config
 
 default: check
 
+check:
+	./run.sh
+
 clean:
 	@rm -f *.pfb*
 	@rm -f *.silo*
@@ -33,3 +36,5 @@ clean:
 	@rm -fr LW_var_dz_spinup.out
 	@rm -fr default_single.out
 	@rm -f *.nc
+	@rm -f clm.rst.00000.0
+
