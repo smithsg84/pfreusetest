@@ -410,7 +410,7 @@ pfset Geom.domain.ICPressure.RefPatch                   z-upper
 #pfset Geom.domain.ICPressure.FileName                   "LW_Loam_SU.out.press.00006.pfb"
 #pfdist "LW_Loam_SU.out.press.00006.pfb"
 
-set reuseValues {1 10}
+set reuseValues {1 2 4 6 8 10}
 
 set runname reuse
 
@@ -440,31 +440,31 @@ foreach reuseCount $reuseValues {
     exec mv CLM.out.clm.log clm.rst.00000.0 $dirname
 }
 
-set sweFile [open "swe.csv" w]
+if 1 {
+    set sweFile [open "swe.csv" w]
 
-for {set k 1} {$k <=$stopt} {incr k} {
-    set timeStep [expr 1.0 / [lindex $reuseValues 0]]
-    set dirname1 [format "LW_SC_ts_%2.2f" $timeStep]
-    set file1 [format "%s/%s.out.clm_output.%05d.C.pfb" $dirname1 $runname $k]
-
-    set timeStep [expr 1.0 / [lindex $reuseValues 1]]
-    set dirname2 [format "LW_SC_ts_%2.2f" $timeStep]
-    set file2 [format "%s/%s.out.clm_output.%05d.C.pfb" $dirname2 $runname $k]
-
-    if [file exists $file1 ] {
-	if [file exists $file2] {
-	    set ds1 [pfload $file1]
-	    set ds2     [pfload $file2]
-
-	    puts $sweFile [format "%d,%e,%e" $k [pfgetelt $ds1 0 0 10] [pfgetelt $ds2 0 0 10]]
-
-	    pfdelete $ds1
-	    pfdelete $ds2
+    for {set k 1} {$k <=$stopt} {incr k} {
+	
+	foreach reuseCount $reuseValues {
+	    set timeStep [expr 1.0 / $reuseCount]
+	    set dirname1 [format "LW_SC_ts_%2.2f" $timeStep]
+	    set file($reuseCount) [format "%s/%s.out.clm_output.%05d.C.pfb" $dirname1 $runname $k]
+	    set ds($reuseCount) [pfload $file($reuseCount)]
+	}
+	
+	puts -nonewline $sweFile [format "%d" $k]
+	foreach reuseCount $reuseValues {
+	    puts -nonewline $sweFile [format ",%e" [pfgetelt $ds($reuseCount) 0 0 10]]
+	}
+	puts $sweFile ""
+	
+	foreach reuseCount $reuseValues {
+	    pfdelete $ds($reuseCount)
 	}
     }
+    
+    close $sweFile
 }
-
-close $sweFile
 
 if 0 {
     for {set k 1} {$k <=$stopt} {incr k} {
