@@ -4,9 +4,9 @@ lappend auto_path $env(PARFLOW_DIR)/bin
 package require parflow
 namespace import Parflow::*
 
-set stopt 8760
-#set stopt 20
-puts $stopt
+#set stopt 8760
+set stopt 100
+puts "Number of timesteps $stopt"
 
 set sig_digits 8
 
@@ -440,6 +440,8 @@ foreach reuseCount $reuseValues {
     exec mv CLM.out.clm.log clm.rst.00000.0 $dirname
 }
 
+set sweFile [open "swe.csv" w]
+
 for {set k 1} {$k <=$stopt} {incr k} {
     set timeStep [expr 1.0 / [lindex $reuseValues 0]]
     set dirname1 [format "LW_SC_ts_%2.2f" $timeStep]
@@ -449,8 +451,34 @@ for {set k 1} {$k <=$stopt} {incr k} {
     set dirname2 [format "LW_SC_ts_%2.2f" $timeStep]
     set file2 [format "%s/%s.out.clm_output.%05d.C.pfb" $dirname2 $runname $k]
 
+    if [file exists $file1 ] {
+	if [file exists $file2] {
+	    set ds1 [pfload $file1]
+	    set ds2     [pfload $file2]
 
-    compareFile $file1 $file2 "CLM result is differs" $sig_digits
+	    puts $sweFile [format "%d,%e,%e" $k [pfgetelt $ds1 0 0 10] [pfgetelt $ds2 0 0 10]]
+
+	    pfdelete $ds1
+	    pfdelete $ds2
+	}
+    }
+}
+
+close $sweFile
+
+if 0 {
+    for {set k 1} {$k <=$stopt} {incr k} {
+	set timeStep [expr 1.0 / [lindex $reuseValues 0]]
+	set dirname1 [format "LW_SC_ts_%2.2f" $timeStep]
+	set file1 [format "%s/%s.out.clm_output.%05d.C.pfb" $dirname1 $runname $k]
+	
+	set timeStep [expr 1.0 / [lindex $reuseValues 1]]
+	set dirname2 [format "LW_SC_ts_%2.2f" $timeStep]
+	set file2 [format "%s/%s.out.clm_output.%05d.C.pfb" $dirname2 $runname $k]
+	
+	
+	compareFile $file1 $file2 "CLM result is differs" $sig_digits
+    }
 }
 
 
