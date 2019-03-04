@@ -6,7 +6,7 @@ namespace import Parflow::*
 
 #set stopt 8760
 set stopt 100
-puts "Number of timesteps $stopt"
+puts "Runtime $stopt"
 
 set sig_digits 8
 
