@@ -4,8 +4,8 @@ lappend auto_path $env(PARFLOW_DIR)/bin
 package require parflow
 namespace import Parflow::*
 
-#set stopt 8760
-set stopt 100
+set stopt 8760
+#set stopt 100
 puts "Total Runtime : $stopt"
 
 set sig_digits 8
