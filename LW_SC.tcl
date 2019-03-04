@@ -6,7 +6,7 @@ namespace import Parflow::*
 
 #set stopt 8760
 set stopt 100
-puts "Runtime $stopt"
+puts "Total Runtime : $stopt"
 
 set sig_digits 8
 
@@ -424,7 +424,7 @@ foreach reuseCount $reuseValues {
     #-----------------------------------------------------------------------------
 
     set dirname [format "LW_SC_ts_%2.2f" [pfget TimeStep.Value]]
-    puts $dirname
+    puts "Running : $dirname"
 
     pfrun $runname
     pfundist $runname
@@ -441,7 +441,15 @@ foreach reuseCount $reuseValues {
 }
 
 if 1 {
+    puts "Writing : swe.csv"
     set sweFile [open "swe.csv" w]
+
+    puts -nonewline $sweFile "Time"
+    foreach reuseCount $reuseValues {
+	set timeStep [expr 1.0 / $reuseCount]
+	puts -nonewline $sweFile [format ",%e" $timeStep]
+    }
+    puts $sweFile ""
 
     for {set k 1} {$k <=$stopt} {incr k} {
 	
@@ -466,6 +474,7 @@ if 1 {
     close $sweFile
 }
 
+# This currently only works for 2 reuse values
 if 0 {
     for {set k 1} {$k <=$stopt} {incr k} {
 	set timeStep [expr 1.0 / [lindex $reuseValues 0]]
