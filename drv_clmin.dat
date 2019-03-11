@@ -137,3 +137,6 @@ W              10.0d0        Cell dimensions W=dx=dy (m)
 rout           1             Row ind of watershed overland outlet                                                                                                                                                                                           
 cout           1             Column ind of watershed overland outlet                                                                                                                                                                                       
 sovout         0.001d0       Slope of watershed overland outlet       
+
+
+!ts             3600                                  Timestep (seconds)

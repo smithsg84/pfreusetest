@@ -1,3 +1,8 @@
+#
+# Test CLM with multiple reuse values for input.  The same test is run
+# with different timesteps and reuse values set to match.   E.G. 1s = reuse 1, 0.1s = reuse 10.
+#
+
 # Import the ParFlow TCL package
 #
 lappend auto_path $env(PARFLOW_DIR)/bin
@@ -5,7 +10,7 @@ package require parflow
 namespace import Parflow::*
 
 #set stopt 8760
-set stopt 100
+set stopt 6000
 puts "Total Runtime : $stopt"
 
 set sig_digits 8
@@ -410,7 +415,7 @@ pfset Geom.domain.ICPressure.RefPatch                   z-upper
 #pfset Geom.domain.ICPressure.FileName                   "LW_Loam_SU.out.press.00006.pfb"
 #pfdist "LW_Loam_SU.out.press.00006.pfb"
 
-set reuseValues {1 10}
+set reuseValues {1 2 10}
 
 set runname reuse
 
@@ -446,11 +451,13 @@ if 1 {
 
     puts -nonewline $sweFile "Time"
     foreach reuseCount $reuseValues {
+	set delta($reuseCount) 0.0
 	set timeStep [expr 1.0 / $reuseCount]
 	puts -nonewline $sweFile [format ",%e" $timeStep]
     }
     puts $sweFile ""
 
+    set compareReuse [lindex $reuseValues 0]
     for {set k 1} {$k <=$stopt} {incr k} {
 	
 	foreach reuseCount $reuseValues {
@@ -459,16 +466,32 @@ if 1 {
 	    set file($reuseCount) [format "%s/%s.out.clm_output.%05d.C.pfb" $dirname1 $runname $k]
 	    set ds($reuseCount) [pfload $file($reuseCount)]
 	}
-	
+
 	puts -nonewline $sweFile [format "%d" $k]
+
 	foreach reuseCount $reuseValues {
 	    puts -nonewline $sweFile [format ",%e" [pfgetelt $ds($reuseCount) 0 0 10]]
+	    if [string equal $reuseCount $compareReuse] {
+		set delta($compareReuse) [expr { $delta($compareReuse) + ([pfgetelt $ds($compareReuse) 0 0 10] * [pfgetelt $ds($compareReuse) 0 0 10]) } ]
+	    } {
+		set  delta($reuseCount) [expr { $delta($reuseCount) + ([pfgetelt $ds($compareReuse) 0 0 10] - [pfgetelt $ds($reuseCount) 0 0 10] ) * ([pfgetelt $ds($compareReuse) 0 0 10] - [pfgetelt $ds($reuseCount) 0 0 10] ) } ]
+	    }
+
 	}
 	puts $sweFile ""
-	
+
 	foreach reuseCount $reuseValues {
 	    pfdelete $ds($reuseCount)
 	}
+    }
+
+    foreach reuseCount $reuseValues {
+	set delta($reuseCount) [expr sqrt($delta($reuseCount))]
+    }
+
+    foreach reuseCount [lrange $reuseValues 1 end] {
+	set relerror($reuseCount) [expr $delta($reuseCount) / $delta($compareReuse) ]
+	puts "rel error $reuseCount = $relerror($reuseCount)"
     }
     
     close $sweFile
@@ -489,7 +512,3 @@ if 0 {
 	compareFile $file1 $file2 "CLM result is differs" $sig_digits
     }
 }
-
-
-
-

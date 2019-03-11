@@ -37,4 +37,5 @@ clean:
 	@rm -fr default_single.out
 	@rm -f *.nc
 	@rm -f clm.rst.00000.0
+	@rm -fr LW_SC_ts_*
 
