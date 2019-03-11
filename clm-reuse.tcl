@@ -9,11 +9,20 @@ lappend auto_path $env(PARFLOW_DIR)/bin
 package require parflow
 namespace import Parflow::*
 
+# Total runtime of simulation
 set stopt 7762
+# Reuse values to run with
+set reuseValues {1 4}
 
 # This was set for reuse = 4 test; other reuse values will fail
 set relativeErrorTolerance 0.2
-set sig_digits 8
+
+#-----------------------------------------------------------------------------
+# Copy CLM files
+#-----------------------------------------------------------------------------
+exec cp clm-reuse/drv_clmin.dat .
+exec cp clm-reuse/drv_vegm.dat .
+exec cp clm-reuse/drv_vegp.dat .
 
 #-----------------------------------------------------------------------------
 # File input version number
@@ -293,7 +302,7 @@ pfset Solver.LSM                                         CLM
 pfset Solver.WriteSiloCLM                                True
 pfset Solver.CLM.MetForcing                              1D
 pfset Solver.CLM.MetFileName                             forcing_1.txt
-pfset Solver.CLM.MetFilePath                             ./
+pfset Solver.CLM.MetFilePath                             ./clm-reuse
 
 #pfset Solver.TerrainFollowingGrid                       True
 pfset Solver.CLM.EvapBeta                             Linear
@@ -349,8 +358,6 @@ pfset Geom.domain.ICPressure.Value                      -1.0
 pfset Geom.domain.ICPressure.RefGeom                    domain
 pfset Geom.domain.ICPressure.RefPatch                   z-upper
 
-set reuseValues {1 4}
-
 set runname reuse
 
 # Run each of the cases
@@ -385,7 +392,7 @@ foreach reuseCount $reuseValues {
 #-----------------------------------------------------------------------------
 
 # swe.csv file contains SWE values for each of the cases run.
-set sweFile [open "swe.csv" w]
+set sweFile [open "swe.out.csv" w]
 
 puts -nonewline $sweFile "Time"
 foreach reuseCount $reuseValues {
@@ -450,5 +457,8 @@ if $passed {
 } {
     puts "default_single : FAILED"
 }
+
+exec rm -f drv_clmin.dat drv_vegm.dat drv_vegp.dat
+
 
 
