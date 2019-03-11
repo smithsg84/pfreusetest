@@ -9,68 +9,11 @@ lappend auto_path $env(PARFLOW_DIR)/bin
 package require parflow
 namespace import Parflow::*
 
-#set stopt 8760
-set stopt 6000
-puts "Total Runtime : $stopt"
+set stopt 7762
 
+# This was set for reuse = 4 test; other reuse values will fail
+set relativeErrorTolerance 0.2
 set sig_digits 8
-
-proc compareFile {file1 file2 message sig_digits} {
-    if [file exists $file1 ] {
-	if [file exists $file2] {
-
-	    puts "Loading $file1"
-	    set correct [pfload $file1]
-	    puts "Loading $file2"
-	    set new     [pfload $file2]
-
-	    puts "$new $correct"
-	    set diff [pfmdiff $new $correct $sig_digits]
-
-	    puts $diff
-
-	    if {[string length $diff] != 0 } {
-		
-		set mSigDigs [lindex $diff 0]
-		set maxAbsDiff [lindex $diff 1]
-		
-		set i [lindex $mSigDigs 0]
-		set j [lindex $mSigDigs 1]
-		set k [lindex $mSigDigs 2]
-		
-		puts "FAILED : $message"
-		
-		puts [format "\tMinimum significant digits at (% 3d, % 3d, % 3d) = %2d"\
-			  $i $j $k [lindex $mSigDigs 3]]
-		
-		puts [format "\tCorrect value %e" [pfgetelt $correct $i $j $k]]
-		puts [format "\tComputed value %e" [pfgetelt $new $i $j $k]]
-		
-		set elt_diff [expr abs([pfgetelt $correct $i $j $k] - [pfgetelt $new $i $j $k])]
-		
-		puts [format "\tDifference %e" $elt_diff]
-		
-		puts [format "\tMaximum absolute difference = %e" $maxAbsDiff]
-		
-		return 0
-	    } {
-		return 1
-	    }
-
-	    pfdelete $correct
-	    pfdelete $new
-	} {
-	    puts "FAILED : regression check output file <$file2> does not exist"
-	}
-    } {
-	puts "FAILED : output file <$file1> not created"
-	return 0
-    }
-}
-
-#file copy -force "../narr_1hr.txt" .
-#file copy -force "../LW_Loam_SU.out.press.00006.pfb" .
-#file copy -force "../stomataSA.rst.00000.0" .
 
 #-----------------------------------------------------------------------------
 # File input version number
@@ -81,13 +24,9 @@ pfset FileVersion 4
 # Process Topology
 #-----------------------------------------------------------------------------
 
-#pfset Process.Topology.P        [lindex $argv 0]
-#pfset Process.Topology.Q        [lindex $argv 1]
-#pfset Process.Topology.R        [lindex $argv 2]
-
-pfset Process.Topology.P        1
-pfset Process.Topology.Q        1
-pfset Process.Topology.R        1
+pfset Process.Topology.P        [lindex $argv 0]
+pfset Process.Topology.Q        [lindex $argv 1]
+pfset Process.Topology.R        [lindex $argv 2]
 
 #-----------------------------------------------------------------------------
 # Computational Grid
@@ -410,15 +349,11 @@ pfset Geom.domain.ICPressure.Value                      -1.0
 pfset Geom.domain.ICPressure.RefGeom                    domain
 pfset Geom.domain.ICPressure.RefPatch                   z-upper
 
-#pfset ICPressure.Type                                   PFBFile
-#pfset ICPressure.GeomNames                              domain
-#pfset Geom.domain.ICPressure.FileName                   "LW_Loam_SU.out.press.00006.pfb"
-#pfdist "LW_Loam_SU.out.press.00006.pfb"
-
-set reuseValues {1 2 10}
+set reuseValues {1 4}
 
 set runname reuse
 
+# Run each of the cases
 foreach reuseCount $reuseValues {
 
     pfset Solver.CLM.ReuseCount      $reuseCount
@@ -445,70 +380,75 @@ foreach reuseCount $reuseValues {
     exec mv CLM.out.clm.log clm.rst.00000.0 $dirname
 }
 
-if 1 {
-    puts "Writing : swe.csv"
-    set sweFile [open "swe.csv" w]
+#-----------------------------------------------------------------------------
+# Post process output.
+#-----------------------------------------------------------------------------
 
-    puts -nonewline $sweFile "Time"
+# swe.csv file contains SWE values for each of the cases run.
+set sweFile [open "swe.csv" w]
+
+puts -nonewline $sweFile "Time"
+foreach reuseCount $reuseValues {
+    set norm($reuseCount) 0.0
+    set timeStep [expr 1.0 / $reuseCount]
+    puts -nonewline $sweFile [format ",%e" $timeStep]
+}
+puts $sweFile ""
+
+# Read each timestep output file for each reuse value and append to SWE file and build up 2-norm for comparison.
+set compareReuse [lindex $reuseValues 0]
+for {set k 1} {$k <=$stopt} {incr k} {
+    
     foreach reuseCount $reuseValues {
-	set delta($reuseCount) 0.0
 	set timeStep [expr 1.0 / $reuseCount]
-	puts -nonewline $sweFile [format ",%e" $timeStep]
-    }
-    puts $sweFile ""
-
-    set compareReuse [lindex $reuseValues 0]
-    for {set k 1} {$k <=$stopt} {incr k} {
-	
-	foreach reuseCount $reuseValues {
-	    set timeStep [expr 1.0 / $reuseCount]
-	    set dirname1 [format "LW_SC_ts_%2.2f" $timeStep]
-	    set file($reuseCount) [format "%s/%s.out.clm_output.%05d.C.pfb" $dirname1 $runname $k]
-	    set ds($reuseCount) [pfload $file($reuseCount)]
-	}
-
-	puts -nonewline $sweFile [format "%d" $k]
-
-	foreach reuseCount $reuseValues {
-	    puts -nonewline $sweFile [format ",%e" [pfgetelt $ds($reuseCount) 0 0 10]]
-	    if [string equal $reuseCount $compareReuse] {
-		set delta($compareReuse) [expr { $delta($compareReuse) + ([pfgetelt $ds($compareReuse) 0 0 10] * [pfgetelt $ds($compareReuse) 0 0 10]) } ]
-	    } {
-		set  delta($reuseCount) [expr { $delta($reuseCount) + ([pfgetelt $ds($compareReuse) 0 0 10] - [pfgetelt $ds($reuseCount) 0 0 10] ) * ([pfgetelt $ds($compareReuse) 0 0 10] - [pfgetelt $ds($reuseCount) 0 0 10] ) } ]
-	    }
-
-	}
-	puts $sweFile ""
-
-	foreach reuseCount $reuseValues {
-	    pfdelete $ds($reuseCount)
-	}
-    }
-
-    foreach reuseCount $reuseValues {
-	set delta($reuseCount) [expr sqrt($delta($reuseCount))]
-    }
-
-    foreach reuseCount [lrange $reuseValues 1 end] {
-	set relerror($reuseCount) [expr $delta($reuseCount) / $delta($compareReuse) ]
-	puts "rel error $reuseCount = $relerror($reuseCount)"
+	set dirname1 [format "LW_SC_ts_%2.2f" $timeStep]
+	set file($reuseCount) [format "%s/%s.out.clm_output.%05d.C.pfb" $dirname1 $runname $k]
+	set ds($reuseCount) [pfload $file($reuseCount)]
     }
     
-    close $sweFile
-}
-
-# This currently only works for 2 reuse values
-if 0 {
-    for {set k 1} {$k <=$stopt} {incr k} {
-	set timeStep [expr 1.0 / [lindex $reuseValues 0]]
-	set dirname1 [format "LW_SC_ts_%2.2f" $timeStep]
-	set file1 [format "%s/%s.out.clm_output.%05d.C.pfb" $dirname1 $runname $k]
+    puts -nonewline $sweFile [format "%d" $k]
+    
+    foreach reuseCount $reuseValues {
+	puts -nonewline $sweFile [format ",%e" [pfgetelt $ds($reuseCount) 0 0 10]]
+	if [string equal $reuseCount $compareReuse] {
+	    set norm($compareReuse) [expr { $norm($compareReuse) + ([pfgetelt $ds($compareReuse) 0 0 10] * [pfgetelt $ds($compareReuse) 0 0 10]) } ]
+	} {
+	    set  norm($reuseCount) [expr { $norm($reuseCount) + ([pfgetelt $ds($compareReuse) 0 0 10] - [pfgetelt $ds($reuseCount) 0 0 10] ) * ([pfgetelt $ds($compareReuse) 0 0 10] - [pfgetelt $ds($reuseCount) 0 0 10] ) } ]
+	}
 	
-	set timeStep [expr 1.0 / [lindex $reuseValues 1]]
-	set dirname2 [format "LW_SC_ts_%2.2f" $timeStep]
-	set file2 [format "%s/%s.out.clm_output.%05d.C.pfb" $dirname2 $runname $k]
-	
-	
-	compareFile $file1 $file2 "CLM result is differs" $sig_digits
+    }
+    puts $sweFile ""
+    
+    foreach reuseCount $reuseValues {
+	pfdelete $ds($reuseCount)
     }
 }
+
+foreach reuseCount $reuseValues {
+    set norm($reuseCount) [expr sqrt($norm($reuseCount))]
+}
+
+close $sweFile
+
+#-----------------------------------------------------------------------------
+# Tests
+#-----------------------------------------------------------------------------
+
+set passed 1
+
+# Test each 2-norm
+foreach reuseCount [lrange $reuseValues 1 end] {
+    set relerror($reuseCount) [expr $norm($reuseCount) / $norm($compareReuse) ]
+    if [expr $relerror($reuseCount) > $relativeErrorTolerance] {
+	puts "FAILED : relative error for reuse count = $reuseCount exceeds error tolerance ( $relerror($reuseCount) > $relativeErrorTolerance)"
+	set passed = 
+    }
+}
+
+if $passed {
+    puts "default_single : PASSED"
+} {
+    puts "default_single : FAILED"
+}
+
+
